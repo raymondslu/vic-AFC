@@ -130,7 +130,7 @@ disp('mouseID', AFCdata.mouseID);            % 1
 disp('minHoldTime', AFCdata.minHoldTime);    % 2
 disp('maxHoldTime', AFCdata.maxHoldTime);    % 3
 disp('rewSide', AFCdata.rewSide);            % 4
-diso('LEDSide',AFCdata.LEDside);             % 5
+disp('LEDSide',AFCdata.LEDside);             % 5
 disp('LEDLength',AFCdata.LEDLength);         % 6
 disp('freeReward', AFCdata.freeReward);      % 7
 disp('laserProb', AFCdata.laserProb);        % 8
@@ -204,7 +204,7 @@ while ElapsedTime < TrialLength
     AFCdata.centerHoldTime = uint16(AFCdata.centerHoldTime);                    % 3
     centerHoldTime=AFCdata.centerHoldTime;
     
-    fwrite(s,centerHoldTime,'uint16');                                          % 4
+    fwrite(Write,centerHoldTime,'uint16');                                          % 4
 
         if readingArduino == 'TRIAL INITIATED'
   
@@ -216,7 +216,7 @@ while ElapsedTime < TrialLength
                 % --- (personal preference)...could also use 0s and 1s
                 % --- 1 or 3 corresponds to LEFT or RIGHT, respectively
               if strcmpi(char(AFCdata.LEDSide),'rand') || strcmpi(char(AFCdata.LEDSide),'random')  
-                AFCdata.nosePort = 3.^(round(rand()));
+                AFCdata.nosePort = 3.^(randi([0 1]));
                 while AFCdata.nosePort == 1
                     AFCdata.leftTrial = 'l';
                     
@@ -227,35 +227,34 @@ while ElapsedTime < TrialLength
                     % --- encode information for transmission or to control of
                     % --- the power supplied to electrical devices such as
                     % --- motors.
+                                   
                     
-                    readingArduino == '
-                    
-                    writePWMVoltage(aWrite, 'D10', 0.5); 
+                    writePWMVoltage(Write, 'D10', 0.5); 
                     pause(0.2);                        % keep on for 200 ms
-                    writePWMVoltage(aWrite,'D10',0);   % turn off LED
+                    writePWMVoltage(Write,'D10',0);   % turn off LED
                    
                 elseif AFCdata.nosePort == 3
                     AFCdata.rightTrial = 'r';
                     
                     % --- write to rightLED flash arduino
-                    writePWMVoltage(aWrite,'D11', 0.5);
+                    writePWMVoltage(Write,'D11', 0.5);
                     pause(0.2);
-                    writePWMVoltage(aWrite,'D11',0);
+                    writePWMVoltage(Write,'D11',0);
                     
                 end
                 if strcmpi(char(AFCdata.LEDSide),'l') 
                     % --- left side trials only
                     % --- write leftLED flash to arduino
-                    writePWMVoltage(aWrite, 'D10', 0.5); 
+                    writePWMVoltage(Write, 'D10', 0.5); 
                     pause(0.2);                        % keep on for 200 ms
-                    writePWMVoltage(aWrite,'D10',0);   % turn off LED
+                    writePWMVoltage(Write,'D10',0);   % turn off LED
                     
                 elseif strcmpi(char(AFCdata.LEDSide),'r')
                     % --- right trials only
                     % --- write to rightLED flash arduino
-                    writePWMVoltage(aWrite,'D11', 0.5);
+                    writePWMVoltage(Write,'D11', 0.5);
                     pause(0.2);
-                    writePWMVoltage(aWrite,'D11',0);
+                    writePWMVoltage(Write,'D11',0);
       
             end
 
@@ -265,44 +264,45 @@ while ElapsedTime < TrialLength
              
 
                     if strcmpi(char(AFCdata.freeReward),'y')
-                        AFCdata.nosePort == 1 && readAnalogPin(Read, 'A1');
+                        AFCdata.nosePort == 1 && readingArduino == 'Left CORRECT');
                     % --- Solenoid output to port 1 (left) in response to LED_ONE.
                     % --- use writePWMVoltage instead of writeDigitalPin since the solenoid
                     % --- requires 12V but the max that arduino can output is 5V
                     % --- writePWMVoltage(arduino, pin number, voltage output between 0 and 5V)
-                    writePWMVoltage(aWrite, 'D5', 5); % leftSolenoid
+                    writePWMVoltage(Write, 'D5', 5); % leftSolenoid
                     disp('Left REWARDED');
                     % --- pause in number of seconds. Basically, this will stall the solenoid for this amount of time, essentially "pausing" it in a state of being open
-                    pause(0.05);
+                    pause(0.05); % valve is open for .05s = 50ms
+                    writePWMVoltage(Write, 'D5', 0); %close solenoid? not sure if this is necessary
                 elseif AFCdata.nosePort == 1 && readAnalogPin(Read,'A2')
                     
                     disp('Left INCORRECT, but REWARDED')
                     % --- give reward when it chooses the correct side
-                    writePWMVoltage(aWrite,'D9',0.5);    % middle (LED_TWO)
-                    writePWMVoltage(aWrite,'D10',0.5);   % left (LED_ONE)
-                    writePWMVoltage(aWrite,'D11',0.5);   % right (LED_THREE)
+                    writePWMVoltage(Write,'D9',0.5);    % middle (LED_TWO)
+                    writePWMVoltage(Write,'D10',0.5);   % left (LED_ONE)
+                    writePWMVoltage(Write,'D11',0.5);   % right (LED_THREE)
                     pause(1);
-                    writePWMVoltage(aWrite,'D9',0);      % middle (LED_TWO)
-                    writePWMVoltage(aWrite,'D10',0);     % left (LED_ONE)
-                    writePWMVoltage(aWrite,'D11',0);     % right (LED_THREE)
+                    writePWMVoltage(Write,'D9',0);      % middle (LED_TWO)
+                    writePWMVoltage(Write,'D10',0);     % left (LED_ONE)
+                    writePWMVoltage(Write,'D11',0);     % right (LED_THREE)
                 end
                 
             end
                 if AFCdata.nosePort == 3 && readAnalogPin(Read,'A2')
                     % --- Solenoid output to port 3 (right) in response to LED_THREE
-                    writePWMVoltage(aWrite, 'D6', 5); % rightSolenoid
+                    writePWMVoltage(Write, 'D6', 5); % rightSolenoid
                     disp('Right REWARDED');
                     pause(0.05);
                 elseif AFCdata.nosePort == 3 && readAnalogPin(Read,'A1')
                     disp('Right INCORRECT');
                     % --- all lights flash for incorrect trial
-                    writePWMVoltage(aWrite,'D9',0.5);    % middle (LED_TWO)
-                    writePWMVoltage(aWrite,'D10',0.5);   % left (LED_ONE)
-                    writePWMVoltage(aWrite,'D11',0.5);   % right (LED_THREE)
+                    writePWMVoltage(Write,'D9',0.5);    % middle (LED_TWO)
+                    writePWMVoltage(Write,'D10',0.5);   % left (LED_ONE)
+                    writePWMVoltage(Write,'D11',0.5);   % right (LED_THREE)
                     pause(1);
-                    writePWMVoltage(aWrite,'D9',0);      % middle (LED_TWO)
-                    writePWMVoltage(aWrite,'D10',0);     % left (LED_ONE)
-                    writePWMVoltage(aWrite,'D11',0);     % right (LED_THREE)
+                    writePWMVoltage(Write,'D9',0);      % middle (LED_TWO)
+                    writePWMVoltage(Write,'D10',0);     % left (LED_ONE)
+                    writePWMVoltage(Write,'D11',0);     % right (LED_THREE)
                 end
                     elseif strcmpi(char(AFCdata.freeReward),'n')
                         AFCdata.nosePort == 1 && readAnalogPin(Read, 'A1');
@@ -310,7 +310,7 @@ while ElapsedTime < TrialLength
                     % --- use writePWMVoltage instead of writeDigitalPin since the solenoid
                     % --- requires 12V but the max that arduino can output is 5V
                     % --- writePWMVoltage(arduino, pin number, voltage output between 0 and 5V)
-                    writePWMVoltage(aWrite, 'D5', 5); % leftSolenoid
+                    writePWMVoltage(Write, 'D5', 5); % leftSolenoid
                     disp('Left REWARDED');
                     % --- pause in number of seconds. Basically, this will stall the solenoid for this amount of time, essentially "pausing" it in a state of being open
                     pause(0.05);
@@ -318,13 +318,13 @@ while ElapsedTime < TrialLength
                     
                     disp('Left INCORRECT')
                     % --- all lights flash for incorrect trial
-                    writePWMVoltage(aWrite,'D9',0.5);    % middle (LED_TWO)
-                    writePWMVoltage(aWrite,'D10',0.5);   % left (LED_ONE)
-                    writePWMVoltage(aWrite,'D11',0.5);   % right (LED_THREE)
+                    writePWMVoltage(Write,'D9',0.5);    % middle (LED_TWO)
+                    writePWMVoltage(Write,'D10',0.5);   % left (LED_ONE)
+                    writePWMVoltage(Write,'D11',0.5);   % right (LED_THREE)
                     pause(1);
-                    writePWMVoltage(aWrite,'D9',0);      % middle (LED_TWO)
-                    writePWMVoltage(aWrite,'D10',0);     % left (LED_ONE)
-                    writePWMVoltage(aWrite,'D11',0);     % right (LED_THREE)
+                    writePWMVoltage(Write,'D9',0);      % middle (LED_TWO)
+                    writePWMVoltage(Write,'D10',0);     % left (LED_ONE)
+                    writePWMVoltage(Write,'D11',0);     % right (LED_THREE)
         end
                 % --- sample ElapsedTime after each trial for time stamp
                 % comparison to end trials
@@ -332,19 +332,19 @@ while ElapsedTime < TrialLength
             end
                 if AFCdata.nosePort == 3 && readAnalogPin(Read,'A2')
                     % --- Solenoid output to port 3 (right) in response to LED_THREE
-                    writePWMVoltage(aWrite, 'D6', 5); % rightSolenoid
+                    writePWMVoltage(Write, 'D6', 5); % rightSolenoid
                     disp('Right REWARDED');
                     pause(0.05);
                 elseif AFCdata.nosePort == 3 && readAnalogPin(Read,'A1')
                     disp('Right INCORRECT');
                     % --- all lights flash for incorrect trial
-                    writePWMVoltage(aWrite,'D9',0.5);    % middle (LED_TWO)
-                    writePWMVoltage(aWrite,'D10',0.5);   % left (LED_ONE)
-                    writePWMVoltage(aWrite,'D11',0.5);   % right (LED_THREE)
+                    writePWMVoltage(Write,'D9',0.5);    % middle (LED_TWO)
+                    writePWMVoltage(Write,'D10',0.5);   % left (LED_ONE)
+                    writePWMVoltage(Write,'D11',0.5);   % right (LED_THREE)
                     pause(1);
-                    writePWMVoltage(aWrite,'D9',0);      % middle (LED_TWO)
-                    writePWMVoltage(aWrite,'D10',0);     % left (LED_ONE)
-                    writePWMVoltage(aWrite,'D11',0);     % right (LED_THREE)
+                    writePWMVoltage(Write,'D9',0);      % middle (LED_TWO)
+                    writePWMVoltage(Write,'D10',0);     % left (LED_ONE)
+                    writePWMVoltage(Write,'D11',0);     % right (LED_THREE)
                 end
                     else
                         errordlg('BAD INPUT FOR freeReward');
