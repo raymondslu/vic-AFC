@@ -41,7 +41,7 @@ fopen(Write);                  % 4
 %        prompt to assign values to variables        %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-prompt = {'mouse ID',...                           1 VC#
+prompt = {'mouse ID',...                           1 VC# (initials and mouse number)
     'minimum center hold time (ms)',...            2 unit in ms
     'maximum center hold time (ms)',...            3 unit in ms
     'LED side (left/right/random)',...             4 inputs: l || r || random
@@ -53,7 +53,7 @@ prompt = {'mouse ID',...                           1 VC#
     'laser length (ms)',...                        10 unit in ms
     'maximum number of trials',...                 11 maximum number of trials
     'task type (pro/anti/blockswitch)',...         12 pro || anti || blockswitch
-    'session ID (#)',...                           13 track which session number the animal is on
+    'session ID (##)',...                           13 track which session number the animal is on
     'session length (min)',...                     14 unit in minutes
     'timeout (yes/no)',...                         15 inputs: yes || no
     'timeout length (s)'};                       % 16 timeout length unit in ms
@@ -63,7 +63,7 @@ prompt_title = '2AFC Behavior Trials';
 num_lines = [1 45]; % [#OfLines  WidthOfUIField];
 
 % --- default answers into the prompt. These can be modified per trial
-def = {'VC',...                 1 mouse ID
+def = {'VC0',...                 1 mouse ID
     '50',...                    2 min HoldTime in ms
     '200',...                   3 max HoldTime in ms
     'random',...                4 LED Side
@@ -73,9 +73,9 @@ def = {'VC',...                 1 mouse ID
     'none',...                  8 opto Trial: none || excitation || inhibition
     '50',...                    9 opto Prob shown as full number %
     '1000',...                  10 laser Length in ms
-    '10000',...                 11 maxTrials
+    '5000',...                  11 maxTrials
     'pro',...                   12 taskType
-    '',...                      13 sessionID
+    '00',...                    13 sessionID
     '70',...                    14 session length
     'no'...                     15 timeout
     '5'};                     % 16 timeout length
@@ -83,52 +83,40 @@ def = {'VC',...                 1 mouse ID
 % --- Create a dialog box; UI = user input
 UI = inputdlg(prompt,prompt_title,num_lines,def);
 
+% --- Initialize overall session data not in UI
 % --- Display time in this format Year-Month-Date Hour:Minute:Second AM/PM DayOfWeek
-% --- For display at the end of the session
-sessionData.dateTime = datetime('now','TimeZone','local','Format','y-MMMM-dd HH:mm:ss a eeee');
-
-% --- for file saving
-sessionData.fileDate = datestr(now, 'yyyy_mm_dd');
-
-% --- Convert character vector to a real number with str2double();
-sessionData.minHoldTime = str2double(sessionData.minHoldTime);
-sessionData.maxHoldTime = str2double(sessionData.maxHoldTime);
-sessionData.LEDLength = str2double(sessionData.LEDLength);
-sessionData.rewardLength = str2double(sessionData.rewardLength);
-sessionData.optoProb = str2double(sessionData.optoProb);
-sessionData.laserLength = str2double(sessionData.laserLength);
-sessionData.maxTrials = str2double(sessionData.maxTrials);
-sessionData.sessionID = str2double(sessionData.sessionID);
-sessionData.length = str2double(sessionData.length);
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%        Keep track of user inputs (UI)        %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-% --- initialize session info for sessionEnd message box
-sessionData.trialTally = 0;
-sessionData.correct = 0;
-sessionData.wrong = 0;
-sessionData.percentageCorrect = 0;
-sessionData.timeoutTally = 0;
-
 % --- Structure arrays contain data in fields that you access by name.
-sessionData=struct('mouseID',UI{1}, ...
-    'minHoldTime',UI{2}, ...
-    'maxHoldTime',UI{3}, ...
-    'LEDSide',UI{4},...
-    'LEDLength',UI{5},...
-    'rewardLength',UI{6},...
-    'freereward',UI{7}, ...
-    'optoTrial',UI{8},...
-    'optoProb',UI{9}, ...
-    'laserLength',UI{10},...
-    'maxTrials',UI{11}, ...
-    'taskType',UI{12}, ...
-    'sessionID',UI{13},...
-    'length',UI{14},...
-    'timeout',UI{15},...
-    'timeoutLength',UI{16},...
+sessionData = struct('trialTally',{0},...
+    'correct',{0},...
+    'wrong',{0},...
+    'percentageCorrect',{0},...   does not include timeouts
+    'timeoutTally',{0},...
+    'dateTime',{datetime('now','TimeZone','local','Format','y-MMMM-dd HH:mm:ss a eeee')},... 
+    'folderDate',{datestr(now, 'yyyy_mm_dd')});  % for file saving
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%        Keep track of overall session data        %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% --- Convert character array to a real number with str2double();
+% --- Convert character array to character with char();
+sessionData=struct('mouseID',char(UI{1}), ...
+    'minHoldTime',str2double(UI{2}),...
+    'maxHoldTime',str2double(UI{3}),...
+    'LEDSide',char(UI{4}),...
+    'LEDLength',str2double(UI{5}),...
+    'rewardLength',str2double(UI{6}),...
+    'freereward',char(UI{7}),...
+    'optoTrial',char(UI{8}),...
+    'optoProb',str2double(UI{9}),...
+    'laserLength',str2double(UI{10}),...
+    'maxTrials',str2double(UI{11}),...
+    'taskType',char(UI{12}),...
+    'sessionID',str2double(UI{13}),...
+    'length',str2double(UI{14}),...
+    'timeout',char(UI{15}),...
+    'timeoutLength',str2double(UI{16}),...
     'dateTime',{sessionData.dateTime},...
     'trialTally',{sessionData.trialTally},...
     'correct',{sessionData.correct},...
@@ -137,35 +125,36 @@ sessionData=struct('mouseID',UI{1}, ...
     'timeoutTally',{sessionData.timeoutTally});
 
 
-% --- display goes to console and print goes to any sort of print output
-% --- device. it is more generic. you can write code that prints to a
-% --- PDF/Printer whereas display is more limited. Print has more features
-% --- and variable names if you want to do more than just 'display'
-
-% --- Print Double-Precision Values as Integers
-% --- %i\n explicitly converts double-precision values with fractions to
-% --- integer values. %d in the formatSpec input prints each value in the
-% --- vector, as a signed integer.
-% --- \n is a control character that starts a new line.
-fprintf('Max trials: %i\n',str2double(sessionData.maxTrials));
-
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %        Keep track of trial outcome        %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-i=7;  % number of rows
-j=1;  % initialize first column
+% --- store trial per trial data in a matrix
+i=7;  % number of rows (# of parameters to keep track of)
+j=1;  % initialize first column (each column represents the new data of each trial)
 
-data = NaN(7,sessionData.maxTrials);  % prepopulate with NaN(rows, column)
+% --- prepopulate with NaN(rows, column) since it's faster than making an increasing matrix
+trialData.matrix = NaN(i,sessionData.maxTrials);  
 
+% --- initialize trialData values
+trialData=struct('trialType',{NaN},...
+    'optoTrial',{NaN},...
+    'LEDSide',{NaN},...
+    'reward',{NaN},...
+    'correct',{NaN},...
+    'centerHoldTime',{NaN},...
+    'timeout',{NaN},...
+    'matrix',{trialData.matrix});
+
+% --- replace NaN with updating trial data
 trialData=struct('trialType',{trialData.trialType},...
     'optoTrial',{trialData.optoTrial},...
     'LEDSide',{trialData.LEDSide},...
     'reward',{trialData.reward},...
     'correct',{trialData.correct},...
     'centerHoldTime',{trialData.centerHoldTime},...
-    'timeout',{trialData.timeout});
+    'timeout',{trialData.timeout},...
+    'matrix',{trialData.matrix});
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -191,13 +180,13 @@ start(timeoutTimer)
 while j<=sessionData.maxTrials || ElapsedTime <= sessionData.length
   
     % --- assign values to the columns of j=j+1
-    data(1,j)=trialData.trialType;          % either 0 or 1 for 'pro' or 'anti,' respectively
-    data(2,j)=trialData.optoTrial;          % 0 = no opto, 1 = excitation, 2 = inhibition
-    data(3,j)=trialData.LEDSide;            % either 1 or 3 for L or R, respectively for LED flash
-    data(4,j)=trialData.reward;             % free reward: +/- 1 or +/- 3 || no free reward: 0 or 1 for no reward, rewarded
-    data(5,j)=trialData.correct;            % correct = 1, wrong = 0
-    data(6,j)=trialData.centerHoldTime;     % will autofill per trial
-    data(7,j)=trialData.timeout;            % timeout = 1, no timeout = 0
+    trialData.matrix(1,j)=trialData.trialType;          % either 0 or 1 for 'pro' or 'anti,' respectively
+    trialData.matrix(2,j)=trialData.optoTrial;          % 0 = no opto, 1 = excitation, 2 = inhibition
+    trialData.matrix(3,j)=trialData.LEDSide;            % either 1 or 3 for L or R, respectively for LED flash
+    trialData.matrix(4,j)=trialData.reward;             % free reward: +/- 1 or +/- 3 || no free reward: 0 or 1 for no reward, rewarded
+    trialData.matrix(5,j)=trialData.correct;            % correct = 1, wrong = 0
+    trialData.matrix(6,j)=trialData.centerHoldTime;     % will autofill per trial
+    trialData.matrix(7,j)=trialData.timeout;            % timeout = 1, no timeout = 0
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %        set initial center nose port holding time        %
@@ -708,19 +697,56 @@ if ElapsedTime > sessionData.length || sessionData.trial >= str2double(sessionDa
     % --- display total trial info to see mouse progress
     disp('SESSION END');
     sessionData.percentageCorrect = sessionData.correct/(sessionData.trialTally-sessionData.timeoutTally);
+    
+    % --- message box function to easily see data without looking into the
+    % command window or txt file
+    % --- sprintf() formats data into a string--utilizing this function for
+    % ------------- summary display
+    % --- display goes to console and print goes to any sort of print output
+    % --- device. it is more generic. you can write code that prints to a
+    % --- PDF/Printer whereas display is more limited. Print has more features
+    % --- and variable names if you want to do more than just 'display'
+
+    % --- Print Double-Precision Values as Integers
+    % --- %i\n explicitly converts double-precision values with fractions to
+    % --- integer values. %d in the formatSpec input prints each value in the
+    % --- vector, as a signed integer. %s is for character vector || string array
+    % --- \n is a control character that starts a new line.
+    
     sessionEnd = msgbox({'2AFC_SKINNER_BOX' '' ...
-                          sessionData.dateTime '' ...
-                         'SESSION LENGTH:' sessionData.length '' ...
-                         'TOTAL NUMBER OF TRIALS:' sessionData.trialTally '' ...
-                         'TOTAL PROBABILITY:' sessionData.percentageCorrect '' ...
-                         'TOTAL CORRECT:' sessionData.correct '' ...
-                         'TOTAL WRONG:' sessionData.wrong '' ...
-                         'TOTAL TIMEOUTS:' sessionData.timeoutTally '' ...
-                         'OPTOGENETICS:' sessionData.optoTrial ''});
+                         sprintf('DATE: %s', sessionData.dateTime) '' ...
+                         sprintf('MOUSE ID: %s', sessionData.mouseID) '' ...
+                         sprintf('SESSION LENGTH: %i', sessionData.length) ...
+                         sprintf('SESSION ID: %i', sessionData.sessionID) ...
+                         sprintf('TOTAL NUMBER OF TRIALS: %i', sessionData.trialTally) ...
+                         sprintf('TOTAL PROBABILITY: %i', sessionData.percentageCorrect) ...
+                         sprintf('TOTAL CORRECT: %i', sessionData.correct) ...
+                         sprintf('TOTAL WRONG: %i', sessionData.wrong) ...
+                         sprintf('TOTAL TIMEOUTS: %i', sessionData.timeoutTally) ...
+                         sprintf('OPTOGENETICS: %s', sessionData.optoTrial)});
                      
-    % --- save data & export to file using fprintf()
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %        save data & export to file using fprintf()        %
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    
+    % --- summary of session data
+    fprintf('\n DATE:                    %s\n', sessionData.dateTime);
+    fprintf(' MOUSE ID:                %s\n', sessionData.mouseID);
+    fprintf(' SESSION LENGTH:          %i\n', sessionData.length);
+    fprintf(' SESSION ID:              %i\n', sessionData.sessionID);
+    fprintf(' TOTAL NUMBER OF TRIALS:  %i\n', sessionData.trialTally);
+    fprintf(' TOTAL PROBABILITY:       %i\n', sessionData.percentageCorrect);
+    fprintf(' TOTAL CORRECT:           %i\n', sessionData.correct);
+    fprintf(' TOTAL WRONG:             %i\n', sessionData.wrong);
+    fprintf(' TOTAL TIMEOUTS:          %i\n', sessionData.timeoutTally);
+    fprintf(' OPTOGENETICS:            %s\n', sessionData.optoTrial);
+    
+    % --- trial data 
+    fprintf(matrix)
+    
     disp('SAVING DATA TO FILE');
-    AFC_saveData(sessionData.mouseID,sessionData.fileDate);
+    AFC_saveData(sessionData.mouseID,sessionData.sessionID,sessionData.folderDate);
     saveData = msgbox({'' 'DATA SAVE:  COMPLETE' ''});
     
     
