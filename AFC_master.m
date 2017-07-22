@@ -30,11 +30,11 @@ global sessionData ...  % store summary of session data here. 1 session encompas
 % --- 4 establish serial connection between MATLAB & arduino
 % ----- s = serial('COM#); arduino and serial must be diff boards/COM#s
 
-Read = arduino('COM4', 'Uno'); % 1  use Read when you need to directly trigger a pin, for non "true" writing to arduino
-readingArduino = fscanf(Read); % 2
+a = arduino('COM4', 'Uno'); % 1  use when you need to directly trigger a pin
+readingArduino = fscanf(a); % 2
 
-Write = serial('COM5');        % 3  only use Write when sending non-direct pin triggers, for "true" writing to arduino
-fopen(Write);                  % 4
+s = serial('COM5');         % 3  only use when requiring serial communication
+fopen(s);                   % 4
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -53,7 +53,7 @@ prompt = {'mouse ID',...                           1 VC# (initials and mouse num
     'laser length (ms)',...                        10 unit in ms
     'maximum number of trials',...                 11 maximum number of trials
     'task type (pro/anti/blockswitch)',...         12 pro || anti || blockswitch
-    'session ID (##)',...                           13 track which session number the animal is on
+    'session ID (#)',...                           13 track which session number the animal is on
     'session length (min)',...                     14 unit in minutes
     'timeout (yes/no)',...                         15 inputs: yes || no
     'timeout length (s)'};                       % 16 timeout length unit in ms
@@ -181,7 +181,7 @@ while j<=sessionData.maxTrials || elapsedTime <= sessionData.length
     trialData.matrix(7,j)=trialData.timeout;            % timeout = 1, no timeout = 0
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    %        set initial center nose port holding time        %
+    %        Set initial center nose port holding time        %
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     
     % --- 1 randi(lowerbound,upperbound) generates random integer with uniform distribution
@@ -195,42 +195,67 @@ while j<=sessionData.maxTrials || elapsedTime <= sessionData.length
     trialData.centerHoldTime = uint16(trialData.centerHoldTime);  % 2
     centerHoldTime=trialData.centerHoldTime;
     
-    fwrite(Write,centerHoldTime,'uint16');  % 3
+    fwrite(s,centerHoldTime,'uint16');  % 3
     
-    % --- Trial Initiation detected
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %        Trial initiation detected        %
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    
     if readingArduino == 'TRIAL INITIATED'
-        
         sessionData.trialTally = sessionData.trialTally + 1;
         
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        %        Timeout options        %
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        
         % --- if timeout exists, carry out timeout here.
-        if strcmpi(char(sessionData.timeout),'y') || strcmpi(char(sessionData.timeout),'yes')
-            start(timeoutTimer)
-            timingOut = NaN;
-            while isnan(timingOut)
-                if exist('timingOut','var') == 1 && readingArduino == 'wrong'
-                    trialData.timeout = 0;
-                    break
+        switch sessionData.timeout
+            case strcmpi(sessionData.timeout,'y') || strcmpi(sessionData.timeout,'yes')
+                start(timeoutTimer)
+                timingOut = NaN;
+                while isnan(timingOut)
+                    if exist('timingOut','var') == 1 && readingArduino == 'wrong'
+                        trialData.timeout = 0;
+                        break
+                    end
+                    
+                    if exist('timingOut','var') == 1 && readingArduino == 'correct'
+                        trialData.timeout = 0;
+                        break
+                    end
+                    
+                    if exist('timingOut','var') == 1 && timingOut == 1
+                        trialData.timeout = 1;
+                        break
+                    end
                 end
+                clear timingOut
+                delete(timeoutTimer);
                 
-                if exist('timingOut','var') == 1 && readingArduino == 'correct'
-                    trialData.timeout = 0;
-                    break
-                end
-                
-                if exist('timingOut','var') == 1 && timingOut == 1
-                    trialData.timeout = 1;
-                    break
-                end
-            end
-            clear timingOut
-            delete(timeoutTimer);
+            case strcmpi(sessionData.timeout,'n') || strcmpi(sessionData.timeout,'no')
+                trialData.timeout = NaN;
+                sessionData.timeoutTally = NaN;
         end
         
-        % -- if no timeout, then trial continues as is indefinitely until
-        % sessionLength is reached
-        if strcmpi(char(sessionData.timeout),'n') || strcmpi(char(sessionData.timeout),'no')
-            trialData.timeout = NaN;
-            sessionData.timeoutTally = NaN;
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        %        Trial type: anti || pro || blockswitch       %
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        switch sessionData.trialType
+            case strcmpi(sessionData.trialType,'pro')
+                trialData.trialType = 0;
+                fwrite(s,'pro',char);
+            case strcmpi(sessionData.trialType,'anti')
+                trialData.trialType = 1;
+                fwrite(s,'anti',char);
+            case strcmpi(sessionData.trialType, 'blockswitch')
+                trialData.trialType = randi([0 1]);
+                if trialData.trialType == 0
+                    fwrite(s,'pro',char);
+                end
+                if trialData.trialType == 1
+                    fwrite(s,'anti',char);
+                end
         end
         
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -243,255 +268,81 @@ while j<=sessionData.maxTrials || elapsedTime <= sessionData.length
         % ----- (personal preference)...could also use 0s and 1s
         % ----- 1 or 3 corresponds to LEFT or RIGHT, respectively
         
-        % --- for LEDSide = random
-        if strcmpi(char(sessionData.LEDSide),'rand') || strcmpi(char(sessionData.LEDSide),'random')  % 1, 2
-            trialData.LEDSide = 3.^(randi([0 1]));  % 3
+        switch sessionData.LEDSide
+            % --- for LEDSide = random
+            case strcmpi(sessionData.LEDSide,'rand') || strcmpi(sessionData.LEDSide,'random')  % 1, 2
+                trialData.LEDSide = 3.^(randi([0 1]));  % 3
+                if trialData.LEDSide == 1
+                    % --- leftLED flash to arduino
+                    writePWMvoltage(a, 'D10', 0.5);
+                    pause(sessionData.LEDLength/1000);  % keep on for 200 ms
+                    writePWMvoltage(a,'D10',0);         % turn off LED
+                end
+                if trialData.LEDSide == 3
+                    % --- rightLED flash to arduino
+                    writePWMvoltage(a,'D11', 0.5);
+                    pause(sessionData.LEDLength/1000);
+                    writePWMvoltage(a,'D11',0);
+                end
+                
+                % --- for LEDSide = left
+            case strcmpi(sessionData.LEDSide,'l') || strcmpi (sessionData.LEDSide,'left')
+                trialData.LEDSide = 1;
+                if readingArduino == 'TRIAL INITIATED'
+                    writePWMvoltage(a, 'D10', 0.5);
+                    pause(sessionData.LEDLength/1000);  % keep on for 200 ms
+                    writePWMvoltage(a,'D10',0);         % turn off LED
+                end
+                
+                % --- for LEDSide = right
+            case strcmpi(sessionData.LEDSide,'r')|| strcmpi(sessionData.LEDSide,'right')
+                trialData.LEDSide = 3;
+                if readingArduino == 'TRIAL INITIATED'
+                    writePWMvoltage(a,'D11', 0.5);
+                    pause(sessionData.LEDLength/1000);
+                    writePWMvoltage(a,'D11',0);
+                end
+        end
+        
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        %        laser probability        %
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        
+        switch sessionData.optoTrial
             
-            if trialData.LEDSide == 1
-                
-                if strcmpi(char(sessionData.trialType),'pro')
-                    disp('pro-Left INITIATED')
-                    trialData.trialType = 0;
-                    fwrite(Write,'pro',char);
-                end
-                
-                if strcmpi(char(sessionData.trialType),'anti')
-                    disp('anti-Left INITIATED')
-                    trialData.trialType = 1;
-                    fwrite(Write,'anti',char);
-                end
-                
-                % --- write leftLED flash to arduino
-                % --- PWM (Pulse-Width Modulation) is a modulation
-                % --- technique that controls the width of the pulse based
-                % --- on modulator signal information. PWM can be used to
-                % --- encode information for transmission or to control of
-                % --- the power supplied to electrical devices such as
-                % --- motors.
-                
-                % leftLED flash
-                writePWMvoltage(Read, 'D10', 0.5);
-                pause(sessionData.LEDLength/1000);
-                writePWMvoltage(Read,'D10',0);       % turn off LED
-                
-                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                %        laser probability        %
-                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                % --- no opto laser
-                if strcmpi(char(sessionData.optoTrial),'none')
-                    sessionData.optoProb = (str2double(sessionData.optoProb))/100;
-                    trialData.optoTrial = 0;
-                end
+            % --- no opto laser
+            case strcmpi(sessionData.optoTrial,'none')
+                sessionData.optoProb = (str2double(sessionData.optoProb))/100;
+                trialData.optoTrial = 0;
                 
                 % --- opto excitation
-                if strcmpi(char(sessionData.optoTrial),'excitation')
-                    sessionData.optoProb = (str2double(sessionData.optoProb))/100;
-                    laserOnOff = rand;
-                    if laserOnOff <= sessionData.optoProb
-                        trialData.optoTrial = 1;
-                        fwrite(Write,'excitation',char);
-                        if readingArduino == 'EXCITATION ON'
-                            disp('EXCITATION ON');
-                        end
+            case strcmpi(sessionData.optoTrial,'excitation')
+                sessionData.optoProb = (str2double(sessionData.optoProb))/100;
+                laserOnOff = rand;
+                if laserOnOff <= sessionData.optoProb
+                    trialData.optoTrial = 1;
+                    fwrite(s,'excitation',char);
+                    if readingArduino == 'EXCITATION ON'
                     end
-                    if laserOnOff > sessionData.optoProb
-                        trialData.optoTrial = 0;
-                        disp('EXCITATION OFF');
-                    end
+                end
+                if laserOnOff > sessionData.optoProb
+                    trialData.optoTrial = 0;
                 end
                 
                 % --- opto inhibition
-                if strcmpi(char(sessionData.optoTrial),'inhibition')
-                    sessionData.optoProb = (str2double(sessionData.optoProb))/100;
-                    laserOnOff = rand;
-                    if laserOnOff <= sessionData.optoProb
-                        trialData.optoTrial = 2;
-                        fwrite(Write,'inhibition',char);
-                        if readingArduino == 'INHIBITION ON'
-                            disp('INHIBITION ON');
-                        end
-                    end
-                    if laserOnOff > sessionData.optoProb
-                        trialData.optoTrial = 0;
-                        disp('INHIBITION OFF');
-                    end
-                end
-            end
-            
-            
-            
-            if trialData.LEDSide == 3
-                
-                % --- identify trialType here & write to arduino
-                if strcmpi(char(sessionData.trialType),'pro')
-                    disp('pro-Right INITIATED')
-                    trialData.trialType = 0;
-                    fwrite(Write,'pro',char);
-                end
-                
-                if strcmpi(char(sessionData.trialType),'anti')
-                    disp('anti-Right INITIATED')
-                    fwrite(Write,'anti',char);
-                end
-                
-                % --- rightLED flash
-                writePWMvoltage(Read,'D11', 0.5);
-                pause(sessionData.LEDLength/1000);
-                writePWMvoltage(Read,'D11',0);
-                
-                % --- no opto laser
-                if strcmpi(char(sessionData.optoTrial),'none')
-                    sessionData.optoProb = (str2double(sessionData.optoProb))/100;
-                    trialData.optoTrial = 0;
-                end
-                
-                % --- opto excitation
-                if strcmpi(char(sessionData.optoTrial),'excitation')
-                    sessionData.optoProb = (str2double(sessionData.optoProb))/100;
-                    laserOnOff = rand;
-                    if laserOnOff <= sessionData.optoProb
-                        trialData.optoTrial = 1;
-                        fwrite(Write,'excitation',char);
-                        if readingArduino == 'EXCITATION ON'
-                            disp('EXCITATION ON');
-                        end
-                    end
-                    if laserOnOff > sessionData.optoProb
-                        trialData.optoTrial = 0;
-                        disp('EXCITATION OFF');
-                    end
-                end
-                
-                % --- opto inhibition
-                if strcmpi(char(sessionData.optoTrial),'inhibition')
-                    sessionData.optoProb = (str2double(sessionData.optoProb))/100;
-                    laserOnOff = rand;
-                    if laserOnOff <= sessionData.optoProb
-                        trialData.optoTrial = 2;
-                        fwrite(Write,'inhibition',char);
-                        if readingArduino == 'INHIBITION ON'
-                            disp('INHIBITION ON');
-                        end
-                    end
-                    if laserOnOff > sessionData.optoProb
-                        trialData.optoTrial = 0;
-                        disp('INHIBITION OFF');
-                    end
-                end
-            end
-        end
-        
-        % --- for LEDSide on the LEFT only
-        if strcmpi(char(sessionData.LEDSide),'l') || strcmpi (char(sessionData.LEDSide),'left')
-            % --- left side trials only
-            % --- write leftLED flash to arduino
-            trialData.LEDSide = 1;
-            if readingArduino == 'TRIAL INITIATED'
-                writePWMvoltage(Read, 'D10', 0.5);
-                pause(sessionData.LEDLength/1000);         % keep on for 200 ms
-                writePWMvoltage(Read,'D10',0);         % turn off LED
-            end
-            
-            
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            %        laser probability        %
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            
-            % --- no opto laser
-            if strcmpi(char(sessionData.optoTrial),'none')
-                sessionData.optoProb = (str2double(sessionData.optoProb))/100;
-                trialData.optoTrial = 0;
-            end
-            
-            % --- opto excitation
-            if strcmpi(char(sessionData.optoTrial),'excitation')
+            case strcmpi(sessionData.optoTrial,'inhibition')
                 sessionData.optoProb = (str2double(sessionData.optoProb))/100;
                 laserOnOff = rand;
                 if laserOnOff <= sessionData.optoProb
-                    trialData.optoTrial = 1;
-                    fwrite(Write,'excitation',char);
-                    if readingArduino == 'EXCITATION ON'
-                        disp('EXCITATION ON');
-                    end
-                end
-                if laserOnOff > sessionData.optoProb
-                    trialData.optoTrial = 0;
-                    disp('EXCITATION OFF');
-                end
-            end
-            
-            % --- opto inhibition
-            if strcmpi(char(sessionData.optoTrial),'inhibition')
-                sessionData.optoProb = (str2double(sessionData.optoProb))/100;
-                laserOnOff = rand;
-                if laserOnOff <= sessionData.optoProb
-                    trialData.optoTrial = 1;
-                    fwrite(Write,'inhibition',char);
+                    trialData.optoTrial = 2;
+                    fwrite(s,'inhibition',char);
                     if readingArduino == 'INHIBITION ON'
-                        disp('INHIBITION ON');
                     end
                 end
                 if laserOnOff > sessionData.optoProb
                     trialData.optoTrial = 0;
-                    disp('INHIBITION OFF');
                 end
-            end
-        end
-        
-        % --- for LEDSide on the RIGHT only
-        if strcmpi(char(sessionData.LEDSide),'r')|| strcmpi(char(sessionData.LEDSide),'right')
-            % --- right trials only
-            % --- write to rightLED flash arduino
-            trialData.LEDSide = 3;
-            if readingArduino == 'TRIAL INITIATED'
-                writePWMvoltage(Read,'D11', 0.5);
-                pause(sessionData.LEDLength/1000);
-                writePWMvoltage(Read,'D11',0);
-            end
-            
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            %        laser probability        %
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            
-            % --- no opto laser
-            if strcmpi(char(sessionData.optoTrial),'none')
-                sessionData.optoProb = (str2double(sessionData.optoProb))/100;
-                trialData.optoTrial = 0;
-            end
-            
-            % --- opto excitation
-            if strcmpi(char(sessionData.optoTrial),'excitation')
-                sessionData.optoProb = (str2double(sessionData.optoProb))/100;
-                laserOnOff = rand;
-                if laserOnOff <= sessionData.optoProb
-                    trialData.optoTrial = 1;
-                    fwrite(Write,'excitation',char);
-                    if readingArduino == 'EXCITATION ON'
-                        disp('EXCITATION ON');
-                    end
-                end
-                if laserOnOff > sessionData.optoProb
-                    trialData.optoTrial = 0;
-                    disp('EXCITATION OFF');
-                end
-            end
-            
-            % --- opto inhibition
-            if strcmpi(char(sessionData.optoTrial),'inhibition')
-                sessionData.optoProb = (str2double(sessionData.optoProb))/100;
-                laserOnOff = rand;
-                if laserOnOff <= sessionData.optoProb
-                    trialData.optoTrial = 1;
-                    fwrite(Write,'inhibition',char);
-                    if readingArduino == 'INHIBITION ON'
-                        disp('INHIBITION ON');
-                    end
-                end
-                if laserOnOff > sessionData.optoProb
-                    trialData.optoTrial = 0;
-                    disp('INHIBITION OFF');
-                end
-            end
         end
         
         
@@ -500,187 +351,246 @@ while j<=sessionData.maxTrials || elapsedTime <= sessionData.length
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         
         % --- FREE reward TRIALS
-        if strcmpi(char(sessionData.freereward),'y')
-            
-            % --- left-side trials
-            if readingArduino == 'pro-Left CORRECT'
-                
-                % --- tally session correct
-                sessionData.correct = sessionData.correct + 1;
-                
-                % --- Solenoid output to port 1 (left) in response to LED_ONE.
-                % --- use writePWMVoltage instead of writeDigitalPin since the solenoid
-                % --- requires 12V but the max that arduino can output is 5V
-                % --- writePWMVoltage(arduino, pin number, voltage output between 0 and 5V)
-                writePWMvoltage(Read, 'D5', 5); % leftSolenoid
-                pause(sessionData.rewardLength/1000); % valve is open for .05s = 50ms
-                writePWMvoltage(Read, 'D5', 0); %close solenoid
-                writePWMvoltage(Read, 'D5', 5); % 2 clicks for correct
-                pause(sessionData.rewardLength/1000);
-                writePWMvoltage(Read, 'D5', 0);
-                
-                
-                
-                if readingArduino == 'pro-Left REWARDED'
-                    disp('pro-Left REWARDED');
-                    trialData.reward = 1;
-                else trialData.reward = -1;
+        switch sessionData.freereward
+            case strcmpi(sessionData.freereward,'y')
+                switch sessionData.trialType
+                    case strcmpi(sessionData.trialType,'pro')
+                        switch trialData.LEDSide
+                            % --- left-side trials
+                            case trialData.LEDSide == 1
+                                if readingArduino == 'CORRECT'
+                                    
+                                    % --- tally session correct
+                                    sessionData.correct = sessionData.correct + 1;
+                                    
+                                    % --- use writePWMVoltage instead of writeDigitalPin since the solenoid
+                                    % --- requires 12V but the max that arduino can output is 5V, use transistor
+                                    % --- writePWMVoltage(arduino, pin number, voltage output between 0 and 5V)
+                                    writePWMvoltage(a, 'D5', 5);           % leftSolenoid
+                                    pause(sessionData.rewardLength/1000);  % valve is open for .05s = 50ms
+                                    writePWMvoltage(a, 'D5', 0);           % close solenoid
+                                    writePWMvoltage(a, 'D5', 5);           % 2 clicks for correct
+                                    pause(sessionData.rewardLength/1000);
+                                    writePWMvoltage(a, 'D5', 0);
+                                    
+                                    if readingArduino == 'REWARDED'
+                                        trialData.reward = 1;
+                                    end
+                                    if readingArduino == 'CORRECT, but NOT REWARDED'
+                                        trialData.reward = -1;
+                                    end
+                                end
+                                if readingArduino == 'WRONG'
+                                    if readingArduino == 'CORRECT'
+                                        writePWMvoltage(a, 'D5', 5);
+                                        pause(sessionData.rewardLength/1000);
+                                        writePWMvoltage(a, 'D5', 0);
+                                        writePWMvoltage(a, 'D5', 5);
+                                        pause(sessionData.rewardLength/1000);
+                                        writePWMvoltage(a, 'D5', 0);
+                                    end
+                                end
+                                
+                            case trialData.LEDSide == 3
+                                % --- right-side trials
+                                if readingArduino == 'CORRECT'
+                                    sessionData.correct = sessionData.correct + 1;
+                                    writePWMvoltage(a, 'D6', 5);           % rightSolenoid
+                                    pause(sessionData.rewardLength/1000);  % valve is open for .05s = 50ms
+                                    writePWMvoltage(a, 'D6', 0);           % close solenoid
+                                    writePWMvoltage(a, 'D6', 5);           % 2 clicks for correct
+                                    pause(sessionData.rewardLength/1000);
+                                    writePWMvoltage(a, 'D6', 0);
+                                    
+                                    if readingArduino == 'REWARDED'
+                                        trialData.reward = 3;
+                                    end
+                                    if readingArduino == 'CORRECT, but NOT REWARDED'
+                                        trialData.reward = -3;
+                                    end
+                                end
+                                if readingArduino == 'WRONG'
+                                    if readingArduino == 'CORRECT'
+                                        writePWMvoltage(a, 'D6', 5);
+                                        pause(sessionData.rewardLength/1000);
+                                        writePWMvoltage(a, 'D6', 0);
+                                        writePWMvoltage(a, 'D6', 5);
+                                        pause(sessionData.rewardLength/1000);
+                                        writePWMvoltage(a, 'D6', 0);
+                                    end
+                                end
+                        end
+                        
+                    case strcmpi(sessionData.trialType,'anti')
+                        switch trialData.LEDSide
+                            case trialData.LEDSide == 1
+                                % --- left-side trials
+                                if readingArduino == 'CORRECT'
+                                    writePWMvoltage(a, 'D6', 5);           % rightSolenoid
+                                    pause(sessionData.rewardLength/1000);  % valve is open for .05s = 50ms
+                                    writePWMvoltage(a, 'D6', 0);           % close solenoid
+                                    writePWMvoltage(a, 'D6', 5);           % 2 clicks for correct
+                                    pause(sessionData.rewardLength/1000);
+                                    writePWMvoltage(a, 'D6', 0);
+                                    
+                                    if readingArduino == 'REWARDED'
+                                        trialData.reward = 3;
+                                    end
+                                    if readingArduino == 'CORRECT, but NOT REWARDED'
+                                        trialData.reward = -3;
+                                    end
+                                end
+                                if readingArduino == 'WRONG'
+                                    if readingArduino == 'CORRECT'
+                                        writePWMvoltage(a, 'D6', 5);
+                                        pause(sessionData.rewardLength/1000);
+                                        writePWMvoltage(a, 'D6', 0);
+                                        writePWMvoltage(a, 'D6', 5);
+                                        pause(sessionData.rewardLength/1000);
+                                        writePWMvoltage(a, 'D6', 0);
+                                    end
+                                end
+                        end
+                        
+                    case trialData.LEDSide == 3
+                        % --- right side trials
+                        if readingArduino == 'CORRECT'
+                            sessionData.correct = sessionData.correct + 1;
+                            writePWMvoltage(a, 'D5', 5);           % leftSolenoid
+                            pause(sessionData.rewardLength/1000);  % valve is open for .05s = 50ms
+                            writePWMvoltage(a, 'D5', 0);           % close solenoid
+                            writePWMvoltage(a, 'D5', 5);           % 2 clicks for correct
+                            pause(sessionData.rewardLength/1000);
+                            writePWMvoltage(a, 'D5', 0);
+                            
+                            if readingArduino == 'REWARDED'
+                                trialData.reward = 1;
+                            end
+                            if readingArduino == 'CORRECT, but NOT REWARDED'
+                                trialData.reward = -1;
+                            end
+                        end
+                        if readingArduino == 'WRONG'
+                            if readingArduino == 'CORRECT'
+                                writePWMvoltage(a, 'D5', 5);
+                                pause(sessionData.rewardLength/1000);
+                                writePWMvoltage(a, 'D5', 0);
+                                writePWMvoltage(a, 'D5', 5);
+                                pause(sessionData.rewardLength/1000);
+                                writePWMvoltage(a, 'D5', 0);
+                            end
+                        end
                 end
-                disp('END TRIAL');
-            end
-            
-            if readingArduino == 'pro-Left WRONG'
-                sessionData.wrong = sessionData.wrong + 1;
-                writePWMvoltage(Read,'D10',0.5); % flash the light on correct side
-                pause(sessionData.LEDlength/1000);
-                writePWMvoltage(Read,'D10',0);
-                if readingArduino == 'pro-Left REWARDED'
-                    disp('pro-Left wrong, but REWARDED');
-                    trialData.reward = 1;
-                else trialData.reward = -1;
-                end
-                disp('END TRIAL');
-            end
-            
-            % --- right-side trials
-            if readingArduino == 'pro-Right CORRECT'
-                
-                sessionData.correct = sessionData.correct + 1;
-                
-                % --- Solenoid output to port 1 (left) in response to LED_ONE.
-                % --- use writePWMVoltage instead of writeDigitalPin since the solenoid
-                % --- requires 12V but the max that arduino can output is 5V
-                % --- writePWMVoltage(arduino, pin number, voltage output between 0 and 5V)
-                writePWMvoltage(Read, 'D6', 5); % leftSolenoid
-                pause(sessionData.rewardLength/1000); % valve is open for .05s = 50ms
-                writePWMvoltage(Read, 'D6', 0); %close solenoid
-                writePWMvoltage(Read, 'D6', 5); % 2 clicks for correct
-                pause(sessionData.rewardLength/1000);
-                writePWMvoltage(Read, 'D6', 0);
-                
-                if readingArduino == 'pro-Right REWARDED'
-                    disp('pro-Right REWARDED');
-                    trialData.reward = 3;
-                else trialData.reward = -3;
-                end
-                disp('END TRIAL');
-            end
-            
-            if readingArduino == 'pro-Right WRONG'
-                
-                sessionData.wrong = sessionData.wrong + 1;
-                
-                writePWMvoltage(Read,'D11',0.5); % flash the light on correct side
-                pause(sessionData.LEDlength/1000);
-                writePWMvoltage(Read,'D11',0);
-                if readingArduino == 'pro-Right REWARDED'
-                    disp('pro-Right wrong, but REWARDED');
-                    trialData.reward = 3;
-                else trialData.reward = -3;
-                end
-                disp('END TRIAL');
-            end
-        end
         
         % --- NO FREE reward TRIALS
-        if strcmpi(char(sessionData.freereward),'n')
-            % --- left-side trials
-            if readingArduino == 'pro-Left CORRECT'
-                
-                sessionData.correct = sessionData.correct + 1;
-                
-                % --- Solenoid output to port 1 (left) in response to LED_ONE.
-                % --- use writePWMVoltage instead of writeDigitalPin since the solenoid
-                % --- requires 12V but the max that arduino can output is 5V
-                % --- writePWMVoltage(arduino, pin number, voltage output between 0 and 5V)
-                writePWMvoltage(Read, 'D5', 5); % leftSolenoid
-                pause(sessionData.rewardLength/1000); % valve is open for .05s = 50ms
-                writePWMvoltage(Read, 'D5', 0); %close solenoid
-                writePWMvoltage(Read, 'D5', 5); % 2 clicks for correct
-                pause(sessionData.rewardLength/1000);
-                writePWMvoltage(Read, 'D5', 0);
-                
-                if readingArduino == 'pro-Left REWARDED'
-                    disp('pro-Left REWARDED');
-                    trialData.REWARDED = 1;
-                else trialData.REWARDED = 0;
-                end
-                disp('END TRIAL');
-            end
-            
-            if readingArduino == 'pro-Left WRONG'
-                
-                sessionData.wrong = sessionData.wrong + 1;
-                trialData.reward = 0;
-                
-                % --- light flash 2x for wrong
-                writePWMvoltage(Read,'D9',0.5);    % middle (LED_TWO)
-                writePWMvoltage(Read,'D10',0.5);   % left (LED_ONE)
-                writePWMvoltage(Read,'D11',0.5);   % right (LED_THREE)
-                pause(0.2);
-                writePWMvoltage(Read,'D9',0);
-                writePWMvoltage(Read,'D10',0);
-                writePWMvoltage(Read,'D11',0);
-                
-                writePWMvoltage(Read,'D9',0.5);
-                writePWMvoltage(Read,'D10',0.5);
-                writePWMvoltage(Read,'D11',0.5);
-                pause(0.2);
-                writePWMvoltage(Read,'D9',0);
-                writePWMvoltage(Read,'D10',0);
-                writePWMvoltage(Read,'D11',0);
-                
-                disp('END TRIAL');
-            end
-            
-            % --- right-side trials
-            if readingArduino == 'pro-Right CORRECT'
-                
-                sessionData.correct = sessionData.correct + 1;
-                
-                % --- Solenoid output to port 1 (left) in response to LED_ONE.
-                % --- use writePWMVoltage instead of writeDigitalPin since the solenoid
-                % --- requires 12V but the max that arduino can output is 5V
-                % --- writePWMVoltage(arduino, pin number, voltage output between 0 and 5V)
-                writePWMvoltage(Read, 'D6', 5); % leftSolenoid
-                pause(sessionData.rewardLength/1000); % valve is open for .05s = 50ms
-                writePWMvoltage(Read, 'D6', 0); %close solenoid
-                writePWMvoltage(Read, 'D6', 5); % 2 clicks for correct
-                pause(sessionData.rewardLength/1000);
-                writePWMvoltage(Read, 'D6', 0);
-                
-                if readingArduino == 'pro-Right REWARDED'
-                    disp('pro-Right REWARDED');
-                    trialData.reward = 3;
-                else trialData.reward = 0;
-                end
-            end
-            
-            if readingArduino == 'pro-Right WRONG'
-                
-                sessionData.wrong = sessionData.wrong + 1;
-                trialData.reward = 0;
-                % --- light flash 2x for wrong
-                writePWMvoltage(Read,'D9',0.5);    % middle (LED_TWO)
-                writePWMvoltage(Read,'D10',0.5);   % left (LED_ONE)
-                writePWMvoltage(Read,'D11',0.5);   % right (LED_THREE)
-                pause(0.2);
-                writePWMvoltage(Read,'D9',0);
-                writePWMvoltage(Read,'D10',0);
-                writePWMvoltage(Read,'D11',0);
-                
-                writePWMvoltage(Read,'D9',0.5);
-                writePWMvoltage(Read,'D10',0.5);
-                writePWMvoltage(Read,'D11',0.5);
-                pause(0.2);
-                writePWMvoltage(Read,'D9',0);
-                writePWMvoltage(Read,'D10',0);
-                writePWMvoltage(Read,'D11',0);
-                
-                disp('END TRIAL');
+        case strcmpi(sessionData.freereward,'n')
+            switch sessionData.trialType
+                case strcmpi(sessionData.trialType,'pro')
+                    switch trialData.LEDSide
+                        % --- left-side trials
+                        case trialData.LEDSide == 1
+                            if readingArduino == 'CORRECT'
+                                
+                                % --- tally session correct
+                                sessionData.correct = sessionData.correct + 1;
+                                
+                                % --- use writePWMVoltage instead of writeDigitalPin since the solenoid
+                                % --- requires 12V but the max that arduino can output is 5V, use transistor
+                                % --- writePWMVoltage(arduino, pin number, voltage output between 0 and 5V)
+                                
+                                writePWMvoltage(a, 'D5', 5);           % leftSolenoid
+                                pause(sessionData.rewardLength/1000);  % valve is open for .05s = 50ms
+                                writePWMvoltage(a, 'D5', 0);           % close solenoid
+                                writePWMvoltage(a, 'D5', 5);           % 2 clicks for correct
+                                pause(sessionData.rewardLength/1000);
+                                writePWMvoltage(a, 'D5', 0);
+                                
+                                if readingArduino == 'REWARDED'
+                                    trialData.reward = 1;
+                                end
+                                if readingArduino == 'CORRECT, but NOT REWARDED'
+                                    trialData.reward = -1;
+                                end
+                            end
+                            if readingArduino == 'WRONG'
+                                sessionData.wrong = sessionData.wrong + 1;
+                            end
+                            
+                        case trialData.LEDSide == 3
+                            % --- right-side trials
+                            if readingArduino == 'CORRECT'
+                                sessionData.correct = sessionData.correct + 1;
+                                writePWMvoltage(a, 'D6', 5);           % rightSolenoid
+                                pause(sessionData.rewardLength/1000);  % valve is open for .05s = 50ms
+                                writePWMvoltage(a, 'D6', 0);           % close solenoid
+                                writePWMvoltage(a, 'D6', 5);           % 2 clicks for correct
+                                pause(sessionData.rewardLength/1000);
+                                writePWMvoltage(a, 'D6', 0);
+                                
+                                if readingArduino == 'REWARDED'
+                                    trialData.reward = 3;
+                                end
+                                if readingArduino == 'CORRECT, but NOT REWARDED'
+                                    trialData.reward = -3;
+                                end
+                            end
+                            if readingArduino == 'WRONG'
+                                sessionData.wrong = sessionData.wrong + 1;
+                            end
+                    end
+                    
+                    
+                case strcmpi(sessionData.trialType,'anti')
+                    switch trialData.LEDSide
+                        case trialData.LEDSide == 1
+                            % --- left-side trials
+                            if readingArduino == 'CORRECT'
+                                writePWMvoltage(a, 'D6', 5);           % rightSolenoid
+                                pause(sessionData.rewardLength/1000);  % valve is open for .05s = 50ms
+                                writePWMvoltage(a, 'D6', 0);           % close solenoid
+                                writePWMvoltage(a, 'D6', 5);           % 2 clicks for correct
+                                pause(sessionData.rewardLength/1000);
+                                writePWMvoltage(a, 'D6', 0);
+                                
+                                if readingArduino == 'REWARDED'
+                                    trialData.reward = 3;
+                                end
+                                if readingArduino == 'CORRECT, but NOT REWARDED'
+                                    trialData.reward = -3;
+                                end
+                            end
+                            if readingArduino == 'WRONG'
+                                if readingArduino == 'CORRECT'
+                                    sessionData.wrong = sessionData.wrong + 1;
+                                end
+                            end
+                            
+                        case trialData.LEDSide == 3
+                            % --- right side trials
+                            if readingArduino == 'CORRECT'
+                                sessionData.correct = sessionData.correct + 1;
+                                writePWMvoltage(a, 'D5', 5);           % leftSolenoid
+                                pause(sessionData.rewardLength/1000);  % valve is open for .05s = 50ms
+                                writePWMvoltage(a, 'D5', 0);           % close solenoid
+                                writePWMvoltage(a, 'D5', 5);           % 2 clicks for correct
+                                pause(sessionData.rewardLength/1000);
+                                writePWMvoltage(a, 'D5', 0);
+                                
+                                if readingArduino == 'REWARDED'
+                                    trialData.reward = 1;
+                                end
+                                if readingArduino == 'CORRECT, but NOT REWARDED'
+                                    trialData.reward = -1;
+                                end
+                            end
+                            if readingArduino == 'WRONG'
+                                sessionData.wrong = sessionData.wrong + 1;
+                            end
+                    end
             end
         end
     end
+    
     
     % --- to increase column so every add column = new trial
     j=j+1;
@@ -747,7 +657,7 @@ if elapsedTime > sessionData.length || sessionData.trial >= str2double(sessionDa
     fprintf(' OPTOGENETICS:            %s\n', sessionData.optoTrial);
     
     % --- trial data figure out how to save matrix or something or print to
-    % txt file and autosave 
+    % txt file and autosave
     fprintf(matrix)
     
     disp('SAVING DATA TO FILE');
@@ -761,7 +671,7 @@ if elapsedTime > sessionData.length || sessionData.trial >= str2double(sessionDa
     % --- 2 Close file after writing video data
     % --- 3 Clear MATLAB command window
     % --- 4 Delete serial port objects from memory to MATLAB workspace
-    fclose(Write);      % 1
+    fclose(s);          % 1
     close all;          % 2
     clc;                % 3
     delete(instrfind);  % 4
