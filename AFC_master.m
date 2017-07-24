@@ -37,6 +37,11 @@ a = arduino('COM4', 'Uno'); % 1  use when you need to directly trigger a pin
 s = serial('COM5');         % 3  only use when requiring serial communication
 fopen(s);                   % 4
 
+%--- turn off warning to prevent MATLAB from terminating during
+%    communication with Arduino.
+warningOff = warning('off', 'all'); 
+warningOn = warning('on', 'all');
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %        prompt to assign values to variables        %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -174,7 +179,6 @@ timeoutTimer = timer('TimerFcn','timingOut = 1','StartDelay',sessionData.timeout
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %        MAIN LOOP IS HERE        %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 while j<=sessionData.maxTrials || elapsedTime <= sessionData.sessionLength
     
     % --- to increase column so every add column = new trial
@@ -210,9 +214,10 @@ while j<=sessionData.maxTrials || elapsedTime <= sessionData.sessionLength
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %        Trial initiation detected        %
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    warningOff = warning('off', 'all');
+    warningOff;
     scanningSerialArduino = fscanf(s,'%s'); % 2
-    %     warningOn = warning('on', 'all');
+    warningOn;
+    
     if str2double(scanningSerialArduino) == char('TRIAL INITIATED')
         sessionData.trialTally = sessionData.trialTally + 1;
         
@@ -220,8 +225,6 @@ while j<=sessionData.maxTrials || elapsedTime <= sessionData.sessionLength
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         %        Timeout options        %
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        
-        % --- if timeout exists, carry out timeout here.
         switch sessionData.timeout
             case strcmpi(sessionData.timeout,'y') || strcmpi(sessionData.timeout,'yes')
                 start(timeoutTimer)
@@ -260,14 +263,14 @@ while j<=sessionData.maxTrials || elapsedTime <= sessionData.sessionLength
             case strcmpi(sessionData.trialType,'anti')
                 trialData.trialType = 1;
                 fwrite(s,'anti',char);
-            case strcmpi(sessionData.trialType, 'blockswitch')
-                trialData.trialType = randi([0 1]);
-                if trialData.trialType == 0
-                    fwrite(s,'pro',char);
-                end
-                if trialData.trialType == 1
-                    fwrite(s,'anti',char);
-                end
+%             case strcmpi(sessionData.trialType, 'blockswitch')
+%                 trialData.trialType = randi([0 1]);
+%                 if trialData.trialType == 0
+%                     fwrite(s,'pro',char);
+%                 end
+%                 if trialData.trialType == 1
+%                     fwrite(s,'anti',char);
+%                 end
         end
         
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
