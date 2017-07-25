@@ -164,9 +164,9 @@ trialData=struct('trialType',{trialData.trialType},...
     'matrix',{trialData.matrix});
 
 % --- Session length
-trialStartTime = round(clock);
-startTimer = tic;
-elapsedTime = toc(startTimer);
+sessionStartTime = round(clock);
+startSessionTimer = tic;
+elapsedSessionTime = toc(startSessionTimer);
 sessionData.sessionLength = 60.* str2double(sessionData.sessionLength); % (60 seconds)*(desired minutes) bc timer counts by seconds
 
 % --- Timeout parameters: will execute the 'TimerFcn,' which is the chktime variable after the
@@ -180,7 +180,7 @@ timeoutTimer = timer('TimerFcn','timingOut = 1','StartDelay',sessionData.timeout
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %        MAIN LOOP IS HERE        %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-while j<=sessionData.maxTrials || elapsedTime <= sessionData.sessionLength
+while j<=sessionData.maxTrials || elapsedSessionTime <= sessionData.sessionLength
     
     % --- to increase column so every add column = new trial
     j=j+1;
@@ -614,7 +614,7 @@ while j<=sessionData.maxTrials || elapsedTime <= sessionData.sessionLength
     
     
     % --- Sample elapsedTime at the end of each trial run for the while loop qualifier
-    elapsedTime;
+    elapsedSessionTime;
     
 end
 
@@ -623,11 +623,11 @@ end
 %        End the trial session        %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-if elapsedTime > sessionData.sessionLength || sessionData.trialTally >= str2double(sessionData.maxTrials)
+if elapsedSessionTime > sessionData.sessionLength || sessionData.trialTally >= str2double(sessionData.maxTrials)
     
     % --- display total trial info to see mouse progress
     trialEndTime = round(clock);
-    sessionPeriod = (trialEndTime - trialStartTime)/60;
+    sessionPeriod = (trialEndTime - sessionStartTime)/60;
     fprintf('\n %s\n', 'SESSION END', sessionPeriod);
     sessionData.percentageCorrect = sessionData.correct/(sessionData.trialTally-sessionData.timeoutTally);
     
