@@ -704,5 +704,14 @@ end
 
 
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%        AUTHOR INFORMATION        %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% AUTHOR: Victoria Cheung
+% Tetrad PhD Program | University of California, San Francisco
+% EMAIL: Victoria.Cheung@ucsf.edu
+% MATRICULATION YEAR: Sept. 2015
 
-
+% PRINCIPAL INVESTIGATOR: Evan H. Feinberg, PhD
+% Department of Anatomy
+% ADDRESS: 1500 4th St Box 2822, San Francisco, CA 94158
