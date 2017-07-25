@@ -7,14 +7,16 @@ int middleDetector = A0;                            // middle detector connects 
 int leftDetector = A1;                              // left detector connects to analog input A1
 int rightDetector = A2;                             // right detector connects to analog input A2
 
-int leftSolenoid = 5;                              // sole0noid reward for the left-side trials
-int rightSolenoid = 6;                             // solenoid reward for the right-side trials
-
+int leftSolenoid = 5;                               // sole0noid reward for the left-side trials
+int rightSolenoid = 6;                              // solenoid reward for the right-side trials
+ 
 // Generally, you should use "unsigned long" for variables that hold time
 // The value will quickly become too large for an int to store
 unsigned long HoldTime;
 unsigned long centerHoldTime;
-int taskType;                                     // read from MATLAB if anti||pro
+int trialType;                                       // read from MATLAB if anti||pro
+char pro;                                   // convert variables to characters that can be read     
+char anti;
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -34,18 +36,18 @@ void setup() {
 
 void loop() {
 // start trial here with HoldTime  
-HoldTime= 100*pulseIn(middleDetector,HIGH);     // pulseIn establishes micosecond counter in the detector to count HIGH
+HoldTime= 100*pulseIn(middleDetector,HIGH);        // pulseIn establishes micosecond counter in the detector to count HIGH
 
 // read that middleDetector is high for self initiation
   while(digitalRead(middleDetector) == HIGH)
   {
-    centerHoldTime = Serial.read(); // read from MATLAB's centerHoldTime
-    if(Serial.read() == 'centerHoldTime' && HoldTime == centerHoldTime)                 // while HIGH, if the HoldTime is achieved then initiate trial
+    centerHoldTime = Serial.read();                // read from MATLAB's centerHoldTime
+    if(HoldTime == centerHoldTime)                 // while HIGH, if the HoldTime is achieved then initiate trial
     Serial.println("TRIAL INITIATED");
 
-taskType = Serial.read();                          // either pro||anti for same stimulus same side vs stimulus and reward on opp side
+trialType = Serial.read();                          // either pro||anti for same stimulus same side vs stimulus and reward on opp side
 
-if (Serial.read() == 'pro')                      // read from MATLAB UI dialog box
+if (trialType == pro)                               // read from MATLAB UI dialog box
 {
   ///////////////////////////
  // Left trial parameters //
@@ -94,7 +96,7 @@ if (Serial.read() == 'pro')                      // read from MATLAB UI dialog b
   }
 }
 
-if (Serial.read() == 'anti')                      // read from MATLAB UI dialog box
+if (trialType == anti)                         // read from MATLAB UI dialog box
 {
   ///////////////////////////
  // Left trial parameters //
