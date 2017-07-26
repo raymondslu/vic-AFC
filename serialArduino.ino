@@ -14,9 +14,7 @@ int rightSolenoid = 6;                              // solenoid reward for the r
 // The value will quickly become too large for an int to store
 unsigned long HoldTime;
 unsigned long centerHoldTime;
-int trialType;                                       // read from MATLAB if anti||pro
-char pro;                                   // convert variables to characters that can be read     
-char anti;
+int taskType;                                       // read from MATLAB if pro||anti (p/a in arduino)
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -37,17 +35,16 @@ void setup() {
 void loop() {
 // start trial here with HoldTime  
 HoldTime= 100*pulseIn(middleDetector,HIGH);        // pulseIn establishes micosecond counter in the detector to count HIGH
+centerHoldTime = Serial.read();                    // read from MATLAB's centerHoldTime
 
 // read that middleDetector is high for self initiation
-  while(digitalRead(middleDetector) == HIGH)
-  {
-    centerHoldTime = Serial.read();                // read from MATLAB's centerHoldTime
-    if(HoldTime == centerHoldTime)                 // while HIGH, if the HoldTime is achieved then initiate trial
-    Serial.println("TRIAL INITIATED");
+// while HIGH, if the HoldTime is achieved then initiate trial
+  if(digitalRead(middleDetector) == HIGH && HoldTime == centerHoldTime)
+    Serial.println(F("trialInitiated"));
 
-trialType = Serial.read();                          // either pro||anti for same stimulus same side vs stimulus and reward on opp side
+    taskType = Serial.read();                     // either pro||anti for same stimulus same side vs stimulus and reward on opp side
 
-if (trialType == pro)                               // read from MATLAB UI dialog box
+if (taskType == 'p')                              // read from MATLAB UI dialog box
 {
   ///////////////////////////
  // Left trial parameters //
@@ -79,10 +76,10 @@ if (trialType == pro)                               // read from MATLAB UI dialo
   {
     if (digitalRead(rightDetector) == HIGH)
     {
-      Serial.println("Right CORRECT");
+      Serial.println("CORRECT");
       if (digitalRead(rightSolenoid)== HIGH)
       {
-        Serial.println("Right REWARDED");
+        Serial.println("REWARDED");
       }
       else
       {
@@ -96,7 +93,7 @@ if (trialType == pro)                               // read from MATLAB UI dialo
   }
 }
 
-if (trialType == anti)                         // read from MATLAB UI dialog box
+if (taskType == 'a')
 {
   ///////////////////////////
  // Left trial parameters //
@@ -124,11 +121,11 @@ if (trialType == anti)                         // read from MATLAB UI dialog box
   ////////////////////////////
  // Right trial parameters //
 ////////////////////////////
-  while (digitalRead(rightLED) == HIGH)
+  if (digitalRead(rightLED) == HIGH)
   {
     if (digitalRead(leftDetector) == HIGH)
     {
-      Serial.println("anti-Right CORRECT");
+      Serial.println("CORRECT");
       if (digitalRead(leftSolenoid)== HIGH)
       {
         Serial.println("REWARDED");
@@ -143,6 +140,5 @@ if (trialType == anti)                         // read from MATLAB UI dialog box
         (Serial.println("INCORRECT"));
       }
   }
-}
 }
 }                 
