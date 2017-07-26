@@ -766,9 +766,8 @@ if exist('sessionEnd','var') == 1 || sessionData.trialTally >= sessionData.maxTr
     % --- 2 Close file after writing video data
     % --- 3 Delete serial port objects from memory to MATLAB workspace
     fclose(serialArduino);          % 1
-    fclose(appenderFile);
-    close all;          % 2
-    delete(instrfind);  % 3
+    close all;                      % 2
+    delete(instrfind);              % 3
 end
 
 
