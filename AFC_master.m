@@ -218,9 +218,9 @@ while exist('sessionEnd','var') == 0 || j<sessionData.maxTrials
     fprintf('CENTER HOLD TIME:  %i\n',centerHoldTime);
     pause(.07);
     
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    %        Trial initiation detected        %   &&   %        Timeout options        %
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %        Trial initiation detected        %   &&   %        Timeout length        %
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     
     % --- A = fscanf(obj) reads ASCII data from the device connected to the
     %         serial port object, obj, and returns it to A. The data is converted
@@ -236,11 +236,11 @@ while exist('sessionEnd','var') == 0 || j<sessionData.maxTrials
             start(timeoutTimer)
             timingOut = NaN;
                     while isnan(timingOut)
-                        if exist('timingOut','var') == 1 && strcmpi(scanningSerialArduino,'CORRECT') == 1 && timingOut ~= 1
+                        if exist('timingOut','var') == 0 && strcmpi(scanningSerialArduino,'CORRECT') == 1 && timingOut ~= 1
                             trialData.timeout = 0;
                             fprintf('TIMEOUT :  %i\n',trialData.timeout);
                             break
-                        elseif exist('timingOut','var') == 1 && strcmpi(scanningSerialArduino,'WRONG') == 1 && timingOut ~= 1
+                        elseif exist('timingOut','var') == 0 && strcmpi(scanningSerialArduino,'WRONG') == 1 && timingOut ~= 1
                             trialData.timeout = 0;
                             fprintf('TIMEOUT :  %i\n',trialData.timeout);
                             break
@@ -260,19 +260,19 @@ while exist('sessionEnd','var') == 0 || j<sessionData.maxTrials
     switch sessionData.taskType
         case 'pro'
             trialData.taskType = 0;
-            fprintf(serialArduino,'%c','p','sync');
+            fprintf(serialArduino,'%s','p','sync');
             fprintf('TASK TYPE:  %i\n',trialData.taskType);
         case 'anti'
             trialData.taskType = 1;
-            fprintf(serialArduino,'%c','a','sync');
+            fprintf(serialArduino,'%s','a','sync');
             fprintf('TASK TYPE:  %i\n',trialData.taskType);
         case 'blockswitch'
             trialData.taskType = randi([0 1]);
             if trialData.taskType == 0
-                fprintf(serialArduino,'%c','p','sync');
+                fprintf(serialArduino,'%s','p','sync');
                 fprintf('TASK TYPE:  %s',trialData.taskType);
             elseif trialData.taskType == 1
-                fprintf(serialArduino,'%c','a','sync');
+                fprintf(serialArduino,'%s','a','sync');
                 fprintf('TASK TYPE:  %s',trialData.taskType);
             end
         otherwise
