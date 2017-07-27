@@ -11,7 +11,7 @@ clear; close all; clc; delete(instrfind);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %        establish global variables        %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
+% 
 global sessionData ...  % store summary of session data here. 1 session encompasses multiple trials
     trialData;          % store trial per trial data here -- matrix form
 
@@ -99,6 +99,7 @@ sessionData = struct('trialTally',{0},...
     'percentageCorrect',{0},...   does not include timeouts
     'reward',{0},...
     'timeoutTally',{0},...
+    'previousTally',{0},...
     'trialDate',{datetime('now','TimeZone','local','Format','y-MMMM-dd HH:mm:ss a eeee')});
 
 
@@ -140,9 +141,6 @@ sessionData=struct('mouseID',char(UI{1}),...
 i=8;  % number of rows (# of parameters to keep track of)
 j=0;  % initialize first column (each column represents the new data of each trial)
 
-% --- prepopulate with NaN(rows, column) since it's faster than making an increasing matrix
-trialData.matrix = NaN(i,sessionData.maxTrials);
-
 % --- initialize trialData values
 trialData=struct('taskType',{NaN},...
     'optoTrial',{NaN},...
@@ -151,19 +149,10 @@ trialData=struct('taskType',{NaN},...
     'correct',{NaN},...
     'centerHoldTime',{NaN},...
     'timeout',{NaN},...
-    'elapsedSessionTime',{NaN},...
-    'matrix',{trialData.matrix});
+    'elapsedSessionTime',{NaN});
 
-% --- replace NaN with updating trial data
-trialData=struct('taskType',{trialData.taskType},...
-    'optoTrial',{trialData.optoTrial},...
-    'LEDSide',{trialData.LEDSide},...
-    'reward',{trialData.reward},...
-    'correct',{trialData.correct},...
-    'centerHoldTime',{trialData.centerHoldTime},...
-    'timeout',{trialData.timeout},...
-    'elapsedSessionTime',{trialData.elapsedSessionTime},...
-    'matrix',{trialData.matrix});
+% --- prepopulate with NaN(rows, column) since it's faster than making an increasing matrix
+trialData.matrix = NaN(i,sessionData.maxTrials);
 
 % --- Session length
 sessionStartTime = round(clock);
@@ -178,6 +167,30 @@ sessionEndTimer = timer('TimerFcn','sessionEnd = sessionData.sessionLength','Sta
 %                         timeoutLength has been reached.
 timeoutTimer = timer('TimerFcn','timingOut = 1','StartDelay',sessionData.timeoutLength);
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%        Set initial center nose port holding time        %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% --- 1 randi(lowerbound,lowerbound) generates random integer with uniform distribution
+% --- 2 uint16(array) converts the elements of an array into unsigned 16-bit (2-byte) integers
+%       of class uint16.
+% --- 3 send answer variable content to arduino
+
+trialData.centerHoldTime = randi([sessionData.minHoldTime,sessionData.maxHoldTime]);  % 1
+
+trialData.centerHoldTime = uint16(trialData.centerHoldTime);  % 2
+centerHoldTime=trialData.centerHoldTime;
+
+
+% --- fprintf(), write data to text file
+%     fwrite(), write data to binary file
+% --- To be really precise, fprintf writes data in text, fwrite in binary format,
+%     but both functions can write to the same (mixed-type)file.
+% --- By default, data is written to the device asynchronously and the command line
+%     is blocked until the operation completes. You can perform an asynchronous write
+%     by configuring the mode input argument to be async.
+fwrite(serialArduino,centerHoldTime,'uint8','async');  % 3
+fprintf('CENTER HOLD TIME:  %i\n',centerHoldTime);
 
 % --- FOR loop is useful when the number of iterations that a condition is known
 %     WHILE loop is useful when the number of iterations is unknown.
@@ -194,31 +207,6 @@ while exist('sessionEnd','var') == 0 || j<sessionData.maxTrials
     j=j+1;
     
     
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    %        Set initial center nose port holding time        %
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    
-    % --- 1 randi(lowerbound,lowerbound) generates random integer with uniform distribution
-    % --- 2 uint16(array) converts the elements of an array into unsigned 16-bit (2-byte) integers
-    %       of class uint16.
-    % --- 3 send answer variable content to arduino
-    
-    trialData.centerHoldTime = randi([sessionData.minHoldTime,sessionData.maxHoldTime]);  % 1
-    
-    trialData.centerHoldTime = uint16(trialData.centerHoldTime);  % 2
-    centerHoldTime=trialData.centerHoldTime;
-    
-    
-    % --- fprintf(), write data to text file
-    %     fwrite(), write data to binary file
-    % --- To be really precise, fprintf writes data in text, fwrite in binary format,
-    %     but both functions can write to the same (mixed-type)file.
-    % --- By default, data is written to the device asynchronously and the command line
-    %     is blocked until the operation completes. You can perform an asynchronous write
-    %     by configuring the mode input argument to be async.
-    fwrite(serialArduino,centerHoldTime,'uint8','async');  % 3
-    fprintf('CENTER HOLD TIME:  %i\n',centerHoldTime);
-    
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %        Trial initiation detected        %   &&   %        Timeout length        %
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -227,6 +215,7 @@ while exist('sessionEnd','var') == 0 || j<sessionData.maxTrials
     %         serial port object, obj, and returns it to A. The data is converted
     %         to text using the %c format.
     % --- For binary data, use fread().
+    warning('off','all');
     scanningSerialArduino = fscanf(serialArduino,'%s');
     
     if strcmpi(scanningSerialArduino,'trialInitiated') == 1
@@ -682,8 +671,16 @@ while exist('sessionEnd','var') == 0 || j<sessionData.maxTrials
         trialData.elapsedSessionTime;
         fprintf('ELAPSED SESSION LENGTH:  %i\n',trialData.elapsedSessionTime/60);
         
+        if sessionData.trialTally == sessionData.previousTally + 1
+            sessionData.previousTally = sessionData.previousTally +1;
+            trialData.centerHoldTime = randi([sessionData.minHoldTime,sessionData.maxHoldTime]);  % 1
+            trialData.centerHoldTime = uint16(trialData.centerHoldTime);  % 2
+            centerHoldTime=trialData.centerHoldTime;
+            fwrite(serialArduino,centerHoldTime,'uint8','async');  % 3
+            fprintf('CENTER HOLD TIME:  %i\n',centerHoldTime);
+        end
+        
     end
-    
 end
 
 
@@ -765,9 +762,11 @@ if exist('sessionEnd','var') == 1 || sessionData.trialTally >= sessionData.maxTr
     % --- 1 Disconnect interface object from instrument i.e. Arduino
     % --- 2 Close file after writing video data
     % --- 3 Delete serial port objects from memory to MATLAB workspace
+    % --- 4 Delete all timers
     fclose(serialArduino);          % 1
     close all;                      % 2
     delete(instrfind);              % 3
+    delete(timerfindall);           % 4
 end
 
 
