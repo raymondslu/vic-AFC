@@ -217,6 +217,7 @@ while exist('sessionEnd','var') == 0 || j<sessionData.maxTrials
     % --- For binary data, use fread().
     warning('off','all');
     scanningSerialArduino = fscanf(serialArduino,'%s');
+    warning('on','all');
     
     if strcmpi(scanningSerialArduino,'trialInitiated') == 1
         sessionData.trialTally = sessionData.trialTally + 1;
@@ -234,6 +235,7 @@ while exist('sessionEnd','var') == 0 || j<sessionData.maxTrials
         if timingOut == 1
             trialData.timeout = 1;
             fprintf('TIMEOUT :  %i\n',trialData.timeout);
+            continue
         end
         clear timingOut
         
