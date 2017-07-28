@@ -16,6 +16,8 @@ unsigned long HoldTime;
 unsigned long centerHoldTime;
 int taskType;                                       // read from MATLAB if pro||anti (p/a in arduino)
 
+int trialInitiated;
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void setup() {
@@ -36,15 +38,14 @@ void loop() {
 // start trial here with HoldTime  
 HoldTime= 100*pulseIn(middleDetector,HIGH);        // pulseIn establishes micosecond counter in the detector to count HIGH
 centerHoldTime = Serial.read();                    // read from MATLAB's centerHoldTime
-
 // read that middleDetector is high for self initiation
 // while HIGH, if the HoldTime is achieved then initiate trial
   if(digitalRead(middleDetector) == HIGH && HoldTime == centerHoldTime)
-    Serial.println(F("trialInitiated"));
+    Serial.println(trialInitiated);
 
     taskType = Serial.read();                     // either pro||anti for same stimulus same side vs stimulus and reward on opp side
 
-if (taskType == 'p')                              // read from MATLAB UI dialog box
+if (taskType == "p")                              // read from MATLAB UI dialog box
 {
   ///////////////////////////
  // Left trial parameters //
@@ -93,7 +94,7 @@ if (taskType == 'p')                              // read from MATLAB UI dialog 
   }
 }
 
-if (taskType == 'a')
+if (taskType == "a")
 {
   ///////////////////////////
  // Left trial parameters //
