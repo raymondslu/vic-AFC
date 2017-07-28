@@ -7,7 +7,7 @@ int middleDetector = A0;                            // middle detector connects 
 int leftDetector = A1;                              // left detector connects to analog input A1
 int rightDetector = A2;                             // right detector connects to analog input A2
 
-int leftSolenoid = 5;                               // sole0noid reward for the left-side trials
+int leftSolenoid = 5;                               // solenoid reward for the left-side trials
 int rightSolenoid = 6;                              // solenoid reward for the right-side trials
  
 // Generally, you should use "unsigned long" for variables that hold time
@@ -15,8 +15,6 @@ int rightSolenoid = 6;                              // solenoid reward for the r
 unsigned long HoldTime;
 unsigned long centerHoldTime;
 int taskType;                                       // read from MATLAB if pro||anti (p/a in arduino)
-
-int trialInitiated;
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -30,22 +28,27 @@ void setup() {
   pinMode(middleLED, OUTPUT);                      // sets middle led as an output, write to Arduino from MATLAB
   pinMode(leftLED, OUTPUT);                        // sets left led as an output, write to Arduino from MATLAB
   pinMode(rightLED, OUTPUT);                       // sets right led as output, write to Arduino from MATLAB
+
+  pinMode(leftSolenoid, OUTPUT);                   // sets leftSolenoid as output, write to Arduino from MATLAB
+  pinMode(rightSolenoid, OUTPUT);                  // sets rightSolenoid as output, write to Arduino from MATLAB
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void loop() {
 // start trial here with HoldTime  
-HoldTime= 100*pulseIn(middleDetector,HIGH);        // pulseIn establishes micosecond counter in the detector to count HIGH
+HoldTime= pulseIn(middleDetector,HIGH)/1000;        // pulseIn establishes micosecond counter in the detector to count HIGH
 centerHoldTime = Serial.read();                    // read from MATLAB's centerHoldTime
+
 // read that middleDetector is high for self initiation
 // while HIGH, if the HoldTime is achieved then initiate trial
   if(digitalRead(middleDetector) == HIGH && HoldTime == centerHoldTime)
-    Serial.println(trialInitiated);
+  {
+    Serial.println(F("trialInitiated"));
 
     taskType = Serial.read();                     // either pro||anti for same stimulus same side vs stimulus and reward on opp side
 
-if (taskType == "p")                              // read from MATLAB UI dialog box
+if (taskType == 'p')                              // read from MATLAB UI dialog box
 {
   ///////////////////////////
  // Left trial parameters //
@@ -94,7 +97,7 @@ if (taskType == "p")                              // read from MATLAB UI dialog 
   }
 }
 
-if (taskType == "a")
+if (taskType == 'a')
 {
   ///////////////////////////
  // Left trial parameters //
@@ -142,4 +145,5 @@ if (taskType == "a")
       }
   }
 }
+  }
 }                 
